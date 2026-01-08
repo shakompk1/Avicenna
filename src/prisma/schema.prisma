@@ -1,0 +1,299 @@
+generator client {
+    provider = "prisma-client"
+    output   = "./app/generated/prisma"
+}
+
+datasource db {
+    provider = "postgresql"
+}
+
+model User {
+    id            String    @id @default(cuid())
+    name          String?
+    email         String?   @unique
+    emailVerified DateTime?
+    image         String?
+    passwordHash String?
+    isSuperAdmin Boolean @default(false)
+
+    accounts    Account[]
+    sessions    Session[]
+    memberships Membership[]
+}
+
+model Account {
+    id                String  @id @default(cuid())
+    userId            String
+    type              String
+    provider          String
+    providerAccountId String
+    refresh_token     String?
+    access_token      String?
+    expires_at        Int?
+    token_type        String?
+    scope             String?
+    id_token          String?
+    session_state     String?
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([provider, providerAccountId])
+}
+
+model Session {
+    id           String   @id @default(cuid())
+    sessionToken String   @unique
+    userId       String
+    expires      DateTime
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+    identifier String
+    token      String   @unique
+    expires    DateTime
+
+    @@unique([identifier, token])
+}
+
+//
+// --------------------
+// Domain (v4.1)
+// --------------------
+//
+
+enum ClinicRole {
+    CLINIC_ADMIN
+    RECEPTION
+    MANAGER
+    DOCTOR
+    STAFF
+    READONLY
+}
+
+enum EmployeeStatus {
+    ACTIVE
+    INACTIVE
+}
+
+enum AppointmentStatus {
+    SCHEDULED
+    CANCELED
+    COMPLETED
+    NO_SHOW
+}
+
+enum AuditAction {
+    PATIENT_CREATED
+    PATIENT_UPDATED
+    PATIENT_DELETED
+
+    EMPLOYEE_CREATED
+    EMPLOYEE_UPDATED
+    EMPLOYEE_DELETED
+
+    ROOM_CREATED
+    ROOM_UPDATED
+    ROOM_DELETED
+
+    SHIFT_CREATED
+    SHIFT_UPDATED
+    SHIFT_DELETED
+
+    ABSENCE_CREATED
+    ABSENCE_UPDATED
+    ABSENCE_DELETED
+
+    APPOINTMENT_CREATED
+    APPOINTMENT_MOVED
+    APPOINTMENT_CANCELED
+    APPOINTMENT_COMPLETED
+}
+
+model Clinic {
+    id        String   @id @default(cuid())
+    name      String
+    timezone  String   @default("Asia/Baku")
+    createdAt DateTime @default(now())
+
+    memberships Membership[]
+
+    employees    Employee[]
+    rooms        Room[]
+    patients     Patient[]
+    shifts       Shift[]
+    absences     Absence[]
+    appointments Appointment[]
+    auditLogs    AuditLog[]
+}
+
+model Membership {
+    id       String     @id @default(cuid())
+    userId   String
+    clinicId String
+    role     ClinicRole
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, clinicId])
+    @@index([clinicId])
+    @@index([userId])
+}
+
+model Room {
+    id       String @id @default(cuid())
+    clinicId String
+    clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+    name String
+
+    // обратная связь; в MVP логически 1 room на employee, но физически не цементируем
+    employees Employee[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([clinicId, name])
+    @@index([clinicId])
+}
+
+model Employee {
+    id       String @id @default(cuid())
+    clinicId String
+    clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+    fullName String
+    status   EmployeeStatus @default(ACTIVE)
+
+    // MVP: у врача один основной кабинет (обязательный)
+    roomId String
+    room   Room   @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+    shifts       Shift[]
+    absences     Absence[]
+    appointments Appointment[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([clinicId])
+    @@index([clinicId, status])
+    @@index([clinicId, roomId])
+}
+
+model Patient {
+    id       String @id @default(cuid())
+    clinicId String
+    clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+    fullName  String
+    phone     String?
+    email     String?
+    note      String?
+    deletedAt DateTime?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    appointments Appointment[]
+
+    @@index([clinicId])
+    @@index([clinicId, fullName])
+    @@index([clinicId, phone])
+    @@index([clinicId, email])
+}
+
+model Shift {
+    id       String @id @default(cuid())
+    clinicId String
+    clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+    employeeId String
+    employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+    startAt DateTime
+    endAt   DateTime
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    appointments Appointment[]
+
+    @@index([clinicId, employeeId, startAt])
+    @@index([clinicId, startAt])
+    @@index([clinicId, employeeId, endAt])
+}
+
+model Absence {
+    id       String @id @default(cuid())
+    clinicId String
+    clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+    employeeId String
+    employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+    startAt DateTime
+    endAt   DateTime
+    reason  String?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([clinicId, employeeId, startAt])
+    @@index([clinicId, startAt])
+    @@index([clinicId, employeeId, endAt])
+}
+
+model Appointment {
+    id       String @id @default(cuid())
+    clinicId String
+    clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+    patientId String
+    patient   Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+    employeeId String
+    employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+    // Appointment ⊂ Shift (обязательная привязка)
+    shiftId String
+    shift   Shift  @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+
+    startAt DateTime
+    endAt   DateTime
+    status  AppointmentStatus @default(SCHEDULED)
+
+    note         String?
+    canceledAt   DateTime?
+    cancelReason String?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([clinicId, employeeId, startAt])
+    @@index([clinicId, patientId, startAt])
+    @@index([clinicId, startAt])
+    @@index([clinicId, shiftId])
+}
+
+model AuditLog {
+    id       String @id @default(cuid())
+    clinicId String
+    clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+    userId       String
+    clinicRole   ClinicRole?
+    isSuperAdmin Boolean     @default(false)
+
+    action     AuditAction
+    entityType String
+    entityId   String
+    meta       Json?
+
+    createdAt DateTime @default(now())
+
+    @@index([clinicId, createdAt])
+    @@index([clinicId, entityType, entityId])
+}
