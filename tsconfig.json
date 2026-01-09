@@ -23,6 +23,7 @@
       "@/stores/*": ["./src/stores/*"],
       "@/shared/*": ["./src/shared/*"],
       "@/features/*": ["./src/features/*"],
+      "@/server/*": ["./src/server/*"],
       "@/ui/*": ["./src/shared/ui/*"]
     }
   },

@@ -1,18 +1,10 @@
-import type { ReactNode } from "react";
-import { RequireAuth } from "@/shared/auth/RequireAuth";
-import { Header } from "@/shared/ui/header/Header";
-import { ClinicSidebar } from "@/features/schedule/sidebar/ClinicSidebar";
+import ClinicSidebar from "@/src/shared/layout/ClinicSidebar";
 
-export default function ClinicLayout({ children }: { children: ReactNode }) {
+export default function ClinicLayout({ children }: { children: React.ReactNode }) {
   return (
-    <RequireAuth scope="clinic">
-      <div className="min-h-screen bg-background">
-        <Header variant="clinic" />
-        <div className="flex">
-          <ClinicSidebar />
-          <main className="flex-1 p-4">{children}</main>
-        </div>
-      </div>
-    </RequireAuth>
+    <div className="flex">
+      <ClinicSidebar />
+      <main className="flex-1 min-h-screen bg-white p-6">{children}</main>
+    </div>
   );
 }

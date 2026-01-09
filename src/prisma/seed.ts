@@ -1,4 +1,4 @@
-import { prisma } from "../src/server/repos/prisma";
+import { prisma } from "@/server/repos/prisma";
 import bcrypt from "bcrypt";
 
 async function main() {
